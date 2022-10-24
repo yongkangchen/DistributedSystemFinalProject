@@ -28,7 +28,7 @@ class NameService:
         """
         pass
 
-    def cached(nid: str, key: str, timestamp: int) -> None: 
+    def set_cache_meta(nid: str, key: str, timestamp: int) -> None: 
         """Record the key cached in a node with its cached timestamp.
         """
         pass
