@@ -8,7 +8,7 @@ class CacheNode:
 		self.nid = nid
 		self.nameservice = nameservice
 
-	def getDBNode(self, key: str, for_update: bool = False) -> tuple[str, int]:  # get a DB node 
+	def getDBNode(self, key: str, for_update: bool = False) -> DBNode:  # get a DB node 
 		node_info = NameService.select(key, for_update)
 
 		#TODO: verify how to initialize a node class for next layers
