@@ -28,12 +28,17 @@ class CacheNode:
 
 			self.cache.move_to_end(key, last=True) # refresh to the newest order
 			res = self.cache[key]
-		else:   
+		else:
+			new_data = self.getDBNode(key, False).get(key)  # get data from DB
+
+			if not new_data:
+				return "No Data Found"
+
 			if len(self.cache) == self.capacity:  
 				self.cache.popitem(last=False)   # Remove the oldest item in the cache
 
 			self.cache[key] = {}	# add new data in cache
-			self.cache[key]["data"] = self.getDBNode(key, False).get(key)  # get data from DB
+			self.cache[key]["data"] = new_data  # get data from DB
 			self.cache[key]["timestamp"] = timestamp
 			self.cache.move_to_end(key, last=True)
 			res = self.cache[key]
