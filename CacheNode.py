@@ -1,5 +1,5 @@
+from interface import DBNode
 from collections import OrderedDict
-
 
 class CacheNode:
 	def __init__(self, capacity, nid, nameservice):
@@ -7,43 +7,45 @@ class CacheNode:
 		self.capacity = capacity
 		self.nid = nid
 		self.nameservice = nameservice
+		self.nameservice.register(self.nid)
+	
+	def __del__(self):
+		self.nameservice.unregister(self.nid)
 
 	def getDBNode(self, key: str, for_update: bool = False) -> DBNode:  # get a DB node 
-		node_info = NameService.select(key, for_update)
+		#node_info = NameService.select(key, for_update)
 
 		#TODO: verify how to initialize a node class for next layers
-		node = DBNode(node_info)
-		return node
+		# node = DBNode(node_info)
+		
+		return DBNode(self.nid)
 
 	def get(self, key: str, timestamp: int) -> str:
-		res = None
-
+		data = None
 		if key in self.cache:
-			item = self.cache[key]
-			cur_timestamp = item["timestamp"]
-
+			cur_timestamp = self.cache[key]["timestamp"]
 			if timestamp > cur_timestamp or timestamp == -1:	# update the cache if the timestamp expired
-				self.cache[key]["data"] = self.getDBNode(key, False).get(key)
-				self.cache[key]["timestamp"] = timestamp
+				del self.cache[key]
+			else:
+				data = self.cache[key]["data"]
 
-			self.cache.move_to_end(key, last=True) # refresh to the newest order
-			res = self.cache[key]
-		else:
-			new_data = self.getDBNode(key, False).get(key)  # get data from DB
+		if not data:
+			data = self.getDBNode(key, False).get(key)  # get data from DB
 
-			if not new_data:
-				return "No Data Found"
+			if not data: return
 
 			if len(self.cache) == self.capacity:  
 				self.cache.popitem(last=False)   # Remove the oldest item in the cache
 
+			new_timestamp = self.generateNewTimetamp()
 			self.cache[key] = {}	# add new data in cache
-			self.cache[key]["data"] = new_data  # get data from DB
-			self.cache[key]["timestamp"] = timestamp
-			self.cache.move_to_end(key, last=True)
-			res = self.cache[key]
+			self.cache[key]["data"] = data
+			self.cache[key]["timestamp"] = new_timestamp
+			self.nameservice.set_cache_meta(self.nid, key, new_timestamp)
 
-		return res["data"]
+		self.cache.move_to_end(key, last=True) # refresh to the newest order
+
+		return data
 
 	def set(self, key: str, value: str) -> bool:
 		self.getDBNode(key, True).set(key, value) # set value in DB
@@ -52,22 +54,16 @@ class CacheNode:
 		# but currently we don't know where to get 
 		# the latest integer(sometimes timestamps from NameService is -1 or doesn't exist)
 		#, or maybe we can use real time like 2022-10-29 20:00
-        new_timestamp = self.generateNewTimetamp()
+		new_timestamp = self.generateNewTimetamp()
 
-		if key in self.cache:
-			self.cache[key]["data"] = value
-			
-			self.cache[key]["timestamp"] = new_timestamp    
-			self.cache.move_to_end(key, last=True)
-			set_cache_meta(
-		else:
+		if key not in self.cache:
 			if len(self.cache) == self.capacity:  
 				self.cache.popitem(last=False)   # Remove the oldest item in the cache
-
 			self.cache[key] = {}	# add new data in cache
-			self.cache[key]["data"] = value
-			self.cache[key]["timestamp"] = new_timestamp
-			self.cache.move_to_end(key, last=True)
+		
+		self.cache[key]["data"] = value
+		self.cache[key]["timestamp"] = new_timestamp    
+		self.cache.move_to_end(key, last=True)
 
 		self.nameservice.set_cache_meta(self.nid, key, new_timestamp)
 
@@ -84,7 +80,7 @@ class CacheNode:
 		return True
 
 
-	def command(self, cmd: str, key: str, timestamp: int, *args) -> any:   # assume the value to set is in args?
+	def command(self, cmd: str, key: str, timestamp: int, *args) -> any:
 		"""If data cached in this node and update time
 		greater or equal than timestamp, return the cached data.
 		Or Forward the command, key, args to the db node selected
@@ -105,7 +101,7 @@ class CacheNode:
 			return self.get(key, timestamp)
 
 		elif cmd == "SET":
-			return self.set(key, args[0]):
+			return self.set(key, args[0])
 
 		elif cmd == "DELETE":
 			return self.delete(key)
