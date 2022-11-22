@@ -6,8 +6,8 @@ class NameService:
     def __init__(self):
         self.nodeList = []
         self.nodeDict = {}
-        self.aliveNodeSet= set()
-        self.failedNodeSet= set()
+        self.alive_node_set= set()
+        self.failed_node_set= set()
         self.returned_heart_beat_node = set()
 
     def select(key: str, for_update: bool = False) -> tuple[str, int]:
@@ -59,17 +59,17 @@ class NameService:
         if key not in nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
-    def removeAliveNode(self, node):
-        if node in self.aliveNodeSet:
-            self.aliveNodeSet.remove(node)
+    def remove_alive_node(self, node):
+        if node in self.alive_node_set:
+            self.alive_node_set.remove(node)
 
-        self.failedNodeSet.add(node)
+        self.failed_node_set.add(node)
 
-    def addAliveNode(self, node):
-        if node in self.failedNodeSet:
-            self.failedNodeSet.remove(node)
+    def add_alive_node(self, node):
+        if node in self.failed_node_set:
+            self.failed_node_set.remove(node)
 
-        self.aliveNodeSet.add(node)
+        self.alive_node_set.add(node)
 
     async def send_heart_beat(self, node, check_num): 
         return node.heart_beat(check_num)    # send a heart beat to a node 
@@ -81,17 +81,17 @@ class NameService:
             return_num = check_num
 
             while check_num == return_num:      # The received number should be the same as the sent number
-                self.addAliveNode(node)
+                self.add_alive_node(node)
                 await asyncio.sleep(period)                  # send a heart bear periodly
                 check_num = random.randrange(1,100)
                 # asynchrous wait for response, if there is timeout then the node may has problems
                 return_num = await asyncio.wait_for(send_heart_beat(node, check_num), timeout=timeout)
 
-            self.removeAliveNode(node)
+            self.remove_alive_node(node)
             self.returned_heart_beat_node.add(node)
 
         except asyncio.TimeoutError:
-            self.removeAliveNode(node)
+            self.remove_alive_node(node)
             self.returned_heart_beat_node.add(node)
 
     async def check_all_heartbeat(self):
@@ -106,7 +106,7 @@ class NameService:
     def start_check_all_heartbeat(self):
         loop = asyncio.get_event_loop()
         self.returned_heart_beat_node = set.union(*self.nodeDict.values())
-        self.aliveNodeSet = self.returned_heart_beat_node.copy()
+        self.alive_node_set = self.returned_heart_beat_node.copy()
 
         try:
             asyncio.ensure_future(check_all_heartbeat(), loop=loop)
