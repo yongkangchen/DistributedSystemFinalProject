@@ -1,10 +1,14 @@
 import random
 import asyncio
-import time
 
 class NameService:
-    nodeList = []
-    nodeDict = {}
+
+    def __init__(self):
+        self.nodeList = []
+        self.nodeDict = {}
+        self.aliveNodeSet= set()
+        self.failedNodeSet= set()
+        self.returned_heart_beat_node = set()
 
     def select(key: str, for_update: bool = False) -> tuple[str, int]:
         """Get the fast node in the register list which
@@ -55,6 +59,17 @@ class NameService:
         if key not in nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
+    def removeAliveNode(self, node):
+        if node in self.aliveNodeSet:
+            self.aliveNodeSet.remove(node)
+
+        self.failedNodeSet.add(node)
+
+    def addAliveNode(self, node):
+        if node in self.failedNodeSet:
+            self.failedNodeSet.remove(node)
+
+        self.aliveNodeSet.add(node)
 
     async def send_heart_beat(self, node, check_num): 
         return node.heart_beat(check_num)    # send a heart beat to a node 
@@ -66,14 +81,41 @@ class NameService:
             return_num = check_num
 
             while check_num == return_num:      # The received number should be the same as the sent number
-                time.sleep(period)                  # send a heart bear periodly
+                self.addAliveNode(node)
+                await asyncio.sleep(period)                  # send a heart bear periodly
                 check_num = random.randrange(1,100)
                 # asynchrous wait for response, if there is timeout then the node may has problems
                 return_num = await asyncio.wait_for(send_heart_beat(node, check_num), timeout=timeout)
 
-            return node
+            self.removeAliveNode(node)
+            self.returned_heart_beat_node.add(node)
+
         except asyncio.TimeoutError:
-            return node              # return the node if timeout happens
+            self.removeAliveNode(node)
+            self.returned_heart_beat_node.add(node)
+
+    async def check_all_heartbeat(self):
+        timeout = 60
+        period = 60
+
+        while self.returned_heart_beat_node:
+            key, node = self.returned_heart_beat_node.pop()
+            asyncio.run(check_heart_beat(node, timeout, period))
+
+
+    def start_check_all_heartbeat(self):
+        loop = asyncio.get_event_loop()
+        self.returned_heart_beat_node = set.union(*self.nodeDict.values())
+        self.aliveNodeSet = self.returned_heart_beat_node.copy()
+
+        try:
+            asyncio.ensure_future(check_all_heartbeat(), loop=loop)
+            loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            print("Closing Loop")
+            loop.close()
 
 
 
