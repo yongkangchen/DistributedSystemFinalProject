@@ -1,25 +1,40 @@
 #!python3
 
+from multiprocessing import Process, Queue, freeze_support
+
+freeze_support()
+processQ = Queue()
+
+import os
+os.environ['PYTHONWARNINGS'] = 'ignore'
+
 from nng_json_rpc.RPCClient import ServerProxy
 import asyncio
 
-from threading import Thread
+def runInProcess(q, serviceName):
+	from importlib import import_module
 
-def startService(service):
 	from nng_json_rpc.RPCServer import RPCServer
 	server = RPCServer("tcp://127.0.0.1:0")
-	local_address = server.local_address
 
+	q.put(str(server.local_address))
+
+	service = getattr(import_module(serviceName), serviceName.split(".").pop())
 	server.build_method_map(service, service.__name__ + ".")
 	server.build_method_map(service)
 
-	asyncio.create_task(server.start())
+	server.serve_forever()
 
-	return local_address
+def startService(serviceName):
+	global processQ
+
+	p = Process(target=runInProcess, args=[processQ, serviceName])
+	p.start()
+
+	return processQ.get(), p
 
 async def testDBNode():
-	from interface.DBNode import DBNode
-	local_address = startService(DBNode)
+	local_address, childProcess = startService("interface.DBNode")
 
 	svr = ServerProxy("tcp://" + str(local_address)).DBNode
 		
@@ -33,11 +48,12 @@ async def testDBNode():
 	assert(await svr.command("GET", "name", 0) == None)
 
 	assert(await svr.command("DELETE", "name", 0) == 0)
+
+	childProcess.kill()
 	
 
 async def testNameService():
-	from NameService import NameService
-	local_address = startService(NameService)
+	local_address, childProcess = startService("NameService")
 
 	svr = ServerProxy("tcp://" + str(local_address)).NameService
 
@@ -75,23 +91,22 @@ async def testNameService():
 
 	assert(await svr.select("name") == [None, 0])
 
+	childProcess.kill()
+
 async def testServerLoadBalancer():
-	from NameService import NameService
-	name_service_address = startService(NameService)
+	name_service_address, nameProcess = startService("NameService")
 
-	from interface.DBNode import DBNode
-	db_address = startService(DBNode)
-
-	from ServerLoadBalancer import ServerLoadBalancer
-	ServerLoadBalancer.NameService = str(name_service_address)
+	db_address, dbProcess = startService("interface.DBNode")
 
 	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
 
 	assert(await name_svr.register(str(db_address)) == None)
 
-	local_address = startService(ServerLoadBalancer)
+	local_address, slbProcess = startService("ServerLoadBalancer")
 
 	svr = ServerProxy("tcp://" + str(local_address)).ServerLoadBalancer
+
+	assert(await svr.bind(name_service_address) == True)
 
 	assert(await svr.forward("GET", "name") == None)
 
@@ -103,6 +118,10 @@ async def testServerLoadBalancer():
 
 	assert(await svr.forward("DELETE", "name") == 0)
 	assert(await svr.forward("GET", "name") == None)
+
+	nameProcess.kill()
+	dbProcess.kill()
+	slbProcess.kill()
 
 def main():
 	asyncio.run(testDBNode())
