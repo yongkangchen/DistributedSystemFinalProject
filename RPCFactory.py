@@ -1,4 +1,4 @@
-from RPCClient import ServerProxy
+from nng_json_rpc.RPCClient import ServerProxy
 
 class RPCFactory:
 	cache = {}

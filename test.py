@@ -1,12 +1,12 @@
 #!python3
 
-from RPCClient import ServerProxy
+from nng_json_rpc.RPCClient import ServerProxy
 import asyncio
 
 from threading import Thread
 
 def startService(service):
-	from RPCServer import RPCServer
+	from nng_json_rpc.RPCServer import RPCServer
 	server = RPCServer("tcp://127.0.0.1:0")
 	local_address = server.local_address
 
