@@ -8,4 +8,4 @@
 
 
 # Note: need to install dependencies: 
-## sh install.sh
+sh install.sh
