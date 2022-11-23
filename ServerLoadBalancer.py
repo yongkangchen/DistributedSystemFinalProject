@@ -4,6 +4,10 @@ from RPCFactory import RPCFactory
 
 class ServerLoadBalancer:
     NameService = None
+    def bind(address: str) -> bool:
+        ServerLoadBalancer.NameService = address
+        return True
+
     async def forward(command: str, key: str, *args) -> any:
         """Call NameService.select to get the id and
         timestamp of cache node, and forward the command,
