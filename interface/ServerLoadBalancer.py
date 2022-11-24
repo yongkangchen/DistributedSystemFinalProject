@@ -1,13 +1,6 @@
-import CacheNode
-import NameService
-
+from CacheNode import CacheNode
 
 class ServerLoadBalancer:
-    def getCacheNode(key: str, for_update: bool = False)-> CacheNode:
-        node_info = NameService.select(key, for_update)
-        node = CacheNode(node_info)
-        return node
-
     def forward(command: str, key: str, *args) -> any:
         """Call NameService.select to get the id and
         timestamp of cache node, and forward the command,
@@ -20,5 +13,4 @@ class ServerLoadBalancer:
         Returns:
             The result returned by cache node.
         """
-        node = ServerLoadBalancer.getCacheNode(key, command != "get")
-        return node.command(command, key, node.timestamp, args)
+        pass

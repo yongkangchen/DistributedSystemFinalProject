@@ -13,7 +13,7 @@ class NameService:
         Returns:
             The id of a node and the timestamp of the key, or None when there does not exist any available node.
         """
-        pass
+        return None, None
 
     def register(nid: str) -> None:
         """Add a new node to the node list.

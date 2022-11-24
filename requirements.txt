@@ -1,0 +1,1 @@
+git+https://github.com/yongkangchen/nng-json-rpc.git

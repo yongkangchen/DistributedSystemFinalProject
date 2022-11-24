@@ -25,19 +25,21 @@ class NameService:
             The id of a node and the timestamp of the key, or None when there does not exist any available node.
         """
 
-        if len(NameService.nodeList) == 0: return
+        if len(NameService.nodeList) == 0: return None, 0
 
-        if key not in nodeDict:
+        if key not in NameService.nodeDict:
             #TODO: select by heartbeat latency of node
             return NameService.nodeList[0], 0
 
-        meta = nodeDict[key]
+        meta = NameService.nodeDict[key]
         if for_update:
             meta.clear()
             #TODO: mapping key
             return NameService.nodeList[0], 0
 
-        return meta.items()[0]
+        #TODO: select by heartbeat latency of node
+        id = max(NameService.nodeList, key=lambda nid: meta.get(nid, 0))
+        return id, meta.get(id, 0)
 
     def register(nid: str) -> None:
         """Add a new node to the node list.
@@ -47,16 +49,17 @@ class NameService:
         """
         NameService.nodeList.append(nid)
 
-    def unregister(nid: str) -> None:
+    def unregister(nid: str) -> bool:
         """Remove a node from node list.
         """
-        if nid not in NameService.nodeList: return
+        if nid not in NameService.nodeList: return False
         NameService.nodeList.remove(nid)
+        return True
 
     def set_cache_meta(nid: str, key: str, timestamp: int) -> None: 
         """Record the key cached in a node with its cached timestamp.
         """
-        if key not in nodeDict: NameService.nodeDict[key] = {}
+        if key not in NameService.nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
     def remove_alive_node(self, node):
