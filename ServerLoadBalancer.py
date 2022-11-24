@@ -8,6 +8,9 @@ class ServerLoadBalancer:
         ServerLoadBalancer.NameService = address
         return True
 
+    async def heart_beat(check_num: int) -> int:
+        return check_num
+
     async def forward(command: str, key: str, *args) -> any:
         """Call NameService.select to get the id and
         timestamp of cache node, and forward the command,

@@ -1,5 +1,6 @@
 import random
 import asyncio
+from RPCFactory import RPCFactory
 
 class NameService:
 
@@ -74,7 +75,7 @@ class NameService:
         NameService.alive_node_set.add(node)
 
     async def send_heart_beat(NameService, node, check_num): 
-        return node.heart_beat(check_num)    # send a heart beat to a node 
+        return await RPCFactory.getInstance(node).heart_beat(check_num)    # send a heart beat to a node 
 
     # TODO: One namservice node sends all hearbeats to different nodes or do this with multiple namservice node?
     async def check_heart_beat(NameService, node, timeout, period):  # node can be cache or load balancer

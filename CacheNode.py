@@ -85,6 +85,9 @@ class CacheNode:
 
         return False
 
+    async def heart_beat(check_num: int) -> int:
+        return check_num
+
 
     async def command(cmd: str, key: str, timestamp: int, *args) -> any:
         """If data cached in this node and update time
