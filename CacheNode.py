@@ -1,24 +1,24 @@
 from interface import DBNode
 from collections import OrderedDict
+import datetime
 
 class CacheNode:
-	def __init__(self, capacity, nid, nameservice):
-		self.cache = OrderedDict()  # example: {"key": {"data":"aaaaaa", "timestamp": 1}}
-		self.capacity = capacity
-		self.nid = nid
-		self.nameservice = nameservice
-		self.nameservice.register(self.nid)
+
+    async def set_up(db_addr: str, name_service_addr: str, nid: str, capacity: int) -> bool:
+        self.db_node = await RPCFactory.getInstance(db_addr)
+        self.nameservice = await RPCFactory.getInstance(name_service_addr)
+        self.nid = nid
+        self.capacity = capacity
+        self.cache = OrderedDict()  # example: {"key": {"data":"aaaaaa", "timestamp": 1}}
+        self.nameservice.register(self.nid)
+        return True
 	
 	def __del__(self):
 		self.nameservice.unregister(self.nid)
 
-	def getDBNode(self, key: str, for_update: bool = False) -> DBNode:  # get a DB node 
-		#node_info = NameService.select(key, for_update)
-
-		#TODO: verify how to initialize a node class for next layers
-		# node = DBNode(node_info)
-		
-		return DBNode(self.nid)
+	def generateNewTimetamp(self):
+		now = datetime.datetime.now()
+		return now.isoformat()
 
 	def get(self, key: str, timestamp: int) -> str:
 		data = None
@@ -30,7 +30,7 @@ class CacheNode:
 				data = self.cache[key]["data"]
 
 		if not data:
-			data = self.getDBNode(key, False).get(key)  # get data from DB
+			data = self.db_node(key, False).get(key)  # get data from DB
 
 			if not data: return
 
@@ -48,7 +48,7 @@ class CacheNode:
 		return data
 
 	def set(self, key: str, value: str) -> bool:
-		self.getDBNode(key, True).set(key, value) # set value in DB
+		self.db_node(key, True).set(key, value) # set value in DB
 
 		#TODO: verify how to generate the newest timestamp, we need the latest integer to do timestamp += 1,
 		# but currently we don't know where to get 
@@ -70,7 +70,7 @@ class CacheNode:
 		return True
 
 	def delete(self, key: str) -> bool:
-		self.getDBNode(key, True).delete(key) # delete value in DB
+		self.db_node(key, True).delete(key) # delete value in DB
 
 		if key in self.cache:
 			del self.cache[key]
