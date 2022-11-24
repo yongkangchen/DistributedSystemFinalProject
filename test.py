@@ -123,10 +123,42 @@ async def testServerLoadBalancer():
 	dbProcess.kill()
 	slbProcess.kill()
 
+async def testCache():
+	name_service_address, nameProcess = startService("NameService")
+
+	db_address, dbProcess = startService("interface.DBNode")
+
+	cache_address, cacheProcess = startService("CacheNode")
+
+	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
+
+	assert(await name_svr.register(str(db_address)) == None)
+
+	db_svr = ServerProxy("tcp://" + str(db_address)).DBNode
+
+	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
+
+	assert(await cache_svr.set_up(db_address, name_service_address, cache_address, 30) == True)
+
+	assert(await cache_svr.command("GET", "name", 0) == None)
+	
+	assert(await cache_svr.command("SET", "name", 0, "cyk") == True)
+	assert(await cache_svr.command("GET", "name", 0) == "cyk")
+
+	assert(await cache_svr.command("DELETE", "name", 0) == 1)
+	assert(await cache_svr.command("GET", "name", 0) == None)
+
+	assert(await cache_svr.command("DELETE", "name", 0) == 0)
+	
+	nameProcess.kill()
+	dbProcess.kill()
+	cacheProcess.kill()
+
 def main():
 	asyncio.run(testDBNode())
 	asyncio.run(testNameService())
 	asyncio.run(testServerLoadBalancer())
+	asyncio.run(testCache())
 
 if __name__ == "__main__":
 	main()
