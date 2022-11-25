@@ -1,6 +1,7 @@
 from RPCFactory import RPCFactory
 from collections import OrderedDict
 import datetime
+import time
 
 class CacheNode:
     db_node = None
@@ -22,9 +23,7 @@ class CacheNode:
         asyncio.run(RPCFactory.getInstance(CacheNode.nameservice).unregister(CacheNode.nid))
 
     def generateNewTimetamp():
-        now = datetime.datetime.now()
-        # return now.isoformat()
-        return 5
+        return time.time()
 
     async def get(key: str, timestamp: int) -> str:
         data = None
@@ -89,7 +88,7 @@ class CacheNode:
         return check_num
 
 
-    async def command(cmd: str, key: str, timestamp: int, *args) -> any:
+    async def command(cmd: str, key: str, timestamp: str, *args) -> any:
         """If data cached in this node and update time
         greater or equal than timestamp, return the cached data.
         Or Forward the command, key, args to the db node selected
