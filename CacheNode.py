@@ -1,6 +1,5 @@
 from RPCFactory import RPCFactory
 from collections import OrderedDict
-import datetime
 import time
 
 class CacheNode:
