@@ -84,7 +84,6 @@ class NameService:
         if key not in NameService.nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
-
     async def send_heart_beat(node, check_num: int): 
         return await RPCFactory.getInstance(node).heart_beat(check_num)    # send a heart beat to a node 
 
@@ -122,7 +121,6 @@ class NameService:
                 asyncio.run(NameService.check_heart_beat(node, timeout, period))
 
             await asyncio.sleep(period)
-
 
     def start_check_all_heartbeat() -> None:
         NameService.returned_heart_beat_node = set(NameService.nodeList)
