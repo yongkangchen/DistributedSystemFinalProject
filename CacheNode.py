@@ -23,7 +23,7 @@ class CacheNode:
         asyncio.run(RPCFactory.getInstance(CacheNode.nameservice).unregister(CacheNode.nid))
 
     def generateNewTimetamp():
-        return time.time()
+        return int(time.time())
 
     async def get(key: str, timestamp: int) -> str:
         data = None
