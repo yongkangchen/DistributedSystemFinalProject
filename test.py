@@ -166,19 +166,19 @@ async def testHeartbeat():
 	assert(await name_svr.start_check_all_heartbeat() == None)
 	await asyncio.sleep(10)  
 
-	assert(cache_address in await name_svr.get_alive_node_set())
+	assert(cache_address in await name_svr.get_alive_node_dict())
 
 	cacheProcess.kill()
 	await asyncio.sleep(10)
 
-	assert(cache_address not in await name_svr.get_alive_node_set())   # check if a node is down
+	assert(cache_address not in await name_svr.get_alive_node_dict())   # check if a node is down
 
 	cache_address, cacheProcess = startService("CacheNode")
 	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
 	assert(await name_svr.register(str(cache_address)) == None)
 	await asyncio.sleep(10)
 
-	assert(cache_address in await name_svr.get_alive_node_set())    # check if a node is recovered
+	assert(cache_address in await name_svr.get_alive_node_dict())    # check if a node is recovered
 
 	cacheProcess.kill()
 	nameProcess.kill()

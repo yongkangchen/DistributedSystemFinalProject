@@ -1,7 +1,9 @@
 import random
 import asyncio
-from RPCFactory import RPCFactory
 import nest_asyncio
+import time
+
+from RPCFactory import RPCFactory
 
 nest_asyncio.apply()
 
@@ -9,12 +11,11 @@ class NameService:
 
     nodeList = []
     nodeDict = {}
-    alive_node_set = set()
-    failed_node_set = set()
-    returned_heart_beat_node = set()
+    alive_node_dict = {}  # {nid: latency}
+    returned_heart_beat_node = set()  # store failed or unchecked nodes
 
-    def get_alive_node_set() -> set:
-        return list(NameService.alive_node_set)
+    def get_alive_node_dict() -> set:
+        return list(NameService.alive_node_dict.keys())
 
     def select(key: str, for_update: bool = False) -> tuple[str, int]:
         """Get the fast node in the register list which
@@ -35,7 +36,10 @@ class NameService:
 
         if key not in NameService.nodeDict:
             #TODO: select by heartbeat latency of node
-            return NameService.nodeList[0], 0
+            if len(NameService.alive_node_dict) == 0:
+                return NameService.nodeList[0], 0
+
+            return min(NameService.alive_node_dict, key=NameService.alive_node_dict.get), 0
 
         meta = NameService.nodeDict[key]
         if for_update:
@@ -43,8 +47,12 @@ class NameService:
             #TODO: mapping key
             return NameService.nodeList[0], 0
 
-        #TODO: select by heartbeat latency of node
         id = max(NameService.nodeList, key=lambda nid: meta.get(nid, 0))
+
+        #TODO: select by heartbeat latency of node
+        if len(NameService.alive_node_dict) > 0:
+            id  = min(NameService.alive_node_dict, key=NameService.alive_node_dict.get)
+
         return id, meta.get(id, 0)
 
     def register(nid: str) -> None:
@@ -64,8 +72,7 @@ class NameService:
 
         try:
             NameService.returned_heart_beat_node.remove(nid)
-            NameService.alive_node_set.remove(nid)
-            NameService.failed_node_set.remove(nid)
+            del NameService.alive_node_dict[nid]
         finally:
             return True
         
@@ -77,17 +84,6 @@ class NameService:
         if key not in NameService.nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
-    def remove_alive_node(node):
-        if node in NameService.alive_node_set:
-            NameService.alive_node_set.remove(node)
-
-        NameService.failed_node_set.add(node)
-
-    def add_alive_node(node):
-        if node in NameService.failed_node_set:
-            NameService.failed_node_set.remove(node)
-
-        NameService.alive_node_set.add(node)
 
     async def send_heart_beat(node, check_num: int): 
         return await RPCFactory.getInstance(node).heart_beat(check_num)    # send a heart beat to a node 
@@ -101,15 +97,19 @@ class NameService:
             while check_num == return_num:      # The received number should be the same as the sent number
                 check_num = random.randrange(1,100)
                 # asynchrous wait for response, if there is timeout then the node may has problems
+                start = time.time()
                 return_num = await asyncio.wait_for(NameService.send_heart_beat(node, check_num), timeout=timeout)
-                NameService.add_alive_node(node)
+                end = time.time()
+                NameService.alive_node_dict[node] = end - start # add lentency of an alive node
                 await asyncio.sleep(period)                  # send a heart bear periodly
 
-            NameService.remove_alive_node(node)
+            if node in NameService.alive_node_dict:
+                del NameService.alive_node_dict[node]
             NameService.returned_heart_beat_node.add(node)
 
-        except:
-            NameService.remove_alive_node(node)
+        except Exception as e:
+            if node in NameService.alive_node_dict:
+                del NameService.alive_node_dict[node]
             NameService.returned_heart_beat_node.add(node)
 
     async def check_all_heartbeat():
@@ -126,5 +126,5 @@ class NameService:
 
     def start_check_all_heartbeat() -> None:
         NameService.returned_heart_beat_node = set(NameService.nodeList)
-        NameService.alive_node_set = NameService.returned_heart_beat_node.copy()
+        NameService.alive_node_dict = dict.fromkeys(NameService.returned_heart_beat_node, 0)
         asyncio.create_task(NameService.check_all_heartbeat())
