@@ -1,14 +1,20 @@
 import random
 import asyncio
 from RPCFactory import RPCFactory
+import nest_asyncio
+
+nest_asyncio.apply()
 
 class NameService:
 
     nodeList = []
     nodeDict = {}
-    alive_node_set= set()
-    failed_node_set= set()
+    alive_node_set = set()
+    failed_node_set = set()
     returned_heart_beat_node = set()
+
+    def get_alive_node_set() -> set:
+        return list(NameService.alive_node_set)
 
     def select(key: str, for_update: bool = False) -> tuple[str, int]:
         """Get the fast node in the register list which
@@ -48,12 +54,21 @@ class NameService:
             key: A identifier of a node.
         """
         NameService.nodeList.append(nid)
+        NameService.returned_heart_beat_node.add(nid)
 
     def unregister(nid: str) -> bool:
         """Remove a node from node list.
         """
         if nid not in NameService.nodeList: return False
         NameService.nodeList.remove(nid)
+
+        try:
+            NameService.returned_heart_beat_node.remove(nid)
+            NameService.alive_node_set.remove(nid)
+            NameService.failed_node_set.remove(nid)
+        finally:
+            return True
+        
         return True
 
     def set_cache_meta(nid: str, key: str, timestamp: int) -> None: 
@@ -62,63 +77,54 @@ class NameService:
         if key not in NameService.nodeDict: NameService.nodeDict[key] = {}
         NameService.nodeDict[key][nid] = timestamp
 
-    def remove_alive_node(NameService, node):
+    def remove_alive_node(node):
         if node in NameService.alive_node_set:
             NameService.alive_node_set.remove(node)
 
         NameService.failed_node_set.add(node)
 
-    def add_alive_node(NameService, node):
+    def add_alive_node(node):
         if node in NameService.failed_node_set:
             NameService.failed_node_set.remove(node)
 
         NameService.alive_node_set.add(node)
 
-    async def send_heart_beat(NameService, node, check_num): 
+    async def send_heart_beat(node, check_num: int): 
         return await RPCFactory.getInstance(node).heart_beat(check_num)    # send a heart beat to a node 
 
-    # TODO: One namservice node sends all hearbeats to different nodes or do this with multiple namservice node?
-    async def check_heart_beat(NameService, node, timeout, period):  # node can be cache or load balancer
+    # TODO: One nameservice node sends all hearbeats to different nodes or do this with multiple namservice node?
+    async def check_heart_beat(node, timeout: int, period: int):  # node can be cache or load balancer
         try:
             check_num = random.randrange(1,100)
             return_num = check_num
 
             while check_num == return_num:      # The received number should be the same as the sent number
-                NameService.add_alive_node(node)
-                await asyncio.sleep(period)                  # send a heart bear periodly
                 check_num = random.randrange(1,100)
                 # asynchrous wait for response, if there is timeout then the node may has problems
-                return_num = await asyncio.wait_for(send_heart_beat(node, check_num), timeout=timeout)
+                return_num = await asyncio.wait_for(NameService.send_heart_beat(node, check_num), timeout=timeout)
+                NameService.add_alive_node(node)
+                await asyncio.sleep(period)                  # send a heart bear periodly
 
             NameService.remove_alive_node(node)
             NameService.returned_heart_beat_node.add(node)
 
-        except asyncio.TimeoutError:
+        except:
             NameService.remove_alive_node(node)
             NameService.returned_heart_beat_node.add(node)
 
-    async def check_all_heartbeat(NameService):
-        timeout = 60
-        period = 60
+    async def check_all_heartbeat():
+        timeout = 3
+        period = 5
 
-        while NameService.returned_heart_beat_node:
-            key, node = NameService.returned_heart_beat_node.pop()
-            asyncio.run(check_heart_beat(node, timeout, period))
+        while True:
+            while NameService.returned_heart_beat_node:
+                node = NameService.returned_heart_beat_node.pop()
+                asyncio.run(NameService.check_heart_beat(node, timeout, period))
+
+            await asyncio.sleep(period)
 
 
-    def start_check_all_heartbeat(NameService):
-        loop = asyncio.get_event_loop()
-        NameService.returned_heart_beat_node = set.union(*NameService.nodeDict.values())
+    def start_check_all_heartbeat() -> None:
+        NameService.returned_heart_beat_node = set(NameService.nodeList)
         NameService.alive_node_set = NameService.returned_heart_beat_node.copy()
-
-        try:
-            asyncio.ensure_future(check_all_heartbeat(), loop=loop)
-            loop.run_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            print("Closing Loop")
-            loop.close()
-
-
-
+        asyncio.create_task(NameService.check_all_heartbeat())

@@ -154,11 +154,42 @@ async def testCache():
 	dbProcess.kill()
 	cacheProcess.kill()
 
+async def testHeartbeat():
+	name_service_address, nameProcess = startService("NameService")
+	cache_address, cacheProcess = startService("CacheNode")
+
+	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
+	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
+
+	assert(await name_svr.register(str(cache_address)) == None)
+
+	assert(await name_svr.start_check_all_heartbeat() == None)
+	await asyncio.sleep(10)  
+
+	assert(cache_address in await name_svr.get_alive_node_set())
+
+	cacheProcess.kill()
+	await asyncio.sleep(10)
+
+	assert(cache_address not in await name_svr.get_alive_node_set())   # check if a node is down
+
+	cache_address, cacheProcess = startService("CacheNode")
+	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
+	assert(await name_svr.register(str(cache_address)) == None)
+	await asyncio.sleep(10)
+
+	assert(cache_address in await name_svr.get_alive_node_set())    # check if a node is recovered
+
+	cacheProcess.kill()
+	nameProcess.kill()
+
+
 def main():
 	asyncio.run(testDBNode())
 	asyncio.run(testNameService())
 	asyncio.run(testServerLoadBalancer())
 	asyncio.run(testCache())
+	asyncio.run(testHeartbeat())
 
 if __name__ == "__main__":
 	main()
