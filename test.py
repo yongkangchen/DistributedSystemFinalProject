@@ -20,6 +20,10 @@ def runInProcess(q, serviceName):
 	q.put(str(server.local_address))
 
 	service = getattr(import_module(serviceName), serviceName.split(".").pop())
+	
+	if getattr(service, "init", None):
+		service.init()
+
 	server.build_method_map(service, service.__name__ + ".")
 	server.build_method_map(service)
 
@@ -33,7 +37,7 @@ def startService(serviceName):
 
 	return processQ.get(), p
 
-async def testDBNode():
+async def testInterfaceDBNode():
 	local_address, childProcess = startService("interface.DBNode")
 
 	svr = ServerProxy("tcp://" + str(local_address)).DBNode
@@ -48,6 +52,28 @@ async def testDBNode():
 	assert(await svr.command("GET", "name", 0) == None)
 
 	assert(await svr.command("DELETE", "name", 0) == 0)
+
+	childProcess.kill()
+
+async def testDBNode():
+	local_address, childProcess = startService("DBNode")
+
+	svr = ServerProxy("tcp://" + str(local_address)).DBNode
+
+	assert(await svr.command("DELETE", "name", 0) in [0,1])
+
+	assert(await svr.command("GET", "name", 0) == None)
+
+
+	assert(await svr.command("SET", "name", 0, "cyk") == True)
+
+	assert(await svr.command("GET", "name", 0) == "cyk")
+
+	assert(await svr.command("DELETE", "name", 0) == 1)
+	assert(await svr.command("GET", "name", 0) == None)
+
+	assert(await svr.command("DELETE", "name", 0) == 0)
+
 
 	childProcess.kill()
 	
@@ -124,6 +150,7 @@ async def testServerLoadBalancer():
 	slbProcess.kill()
 
 def main():
+	asyncio.run(testInterfaceDBNode())
 	asyncio.run(testDBNode())
 	asyncio.run(testNameService())
 	asyncio.run(testServerLoadBalancer())
