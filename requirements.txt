@@ -1,1 +1,2 @@
 git+https://github.com/yongkangchen/nng-json-rpc.git
+nest_asyncio==1.5.6
