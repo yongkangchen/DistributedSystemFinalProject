@@ -54,10 +54,6 @@ class CacheNode:
     async def set(key: str, value: str) -> bool:
         await RPCFactory.getInstance(CacheNode.db_node).notify.set(key, value) # set value in DB
 
-        #TODO: verify how to generate the newest timestamp, we need the latest integer to do timestamp += 1,
-        # but currently we don't know where to get 
-        # the latest integer(sometimes timestamps from NameService is -1 or doesn't exist)
-        #, or maybe we can use real time like 2022-10-29 20:00
         new_timestamp = CacheNode.generateNewTimetamp()
 
         if key not in CacheNode.cache:
