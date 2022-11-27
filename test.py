@@ -17,7 +17,7 @@ def runInProcess(q, serviceName):
 	from nng_json_rpc.RPCServer import RPCServer
 	server = RPCServer("tcp://127.0.0.1:0")
 
-	q.put(str(server.local_address))
+	q.put("tcp://" + str(server.local_address))
 
 	service = getattr(import_module(serviceName), serviceName.split(".").pop())
 	
@@ -32,7 +32,7 @@ def runInProcess(q, serviceName):
 def startService(serviceName):
 	global processQ
 
-	p = Process(target=runInProcess, args=[processQ, serviceName])
+	p = Process(target = runInProcess, args = [processQ, serviceName])
 	p.start()
 
 	return processQ.get(), p
@@ -40,7 +40,7 @@ def startService(serviceName):
 async def testInterfaceDBNode():
 	local_address, childProcess = startService("interface.DBNode")
 
-	svr = ServerProxy("tcp://" + str(local_address)).DBNode
+	svr = ServerProxy(local_address).DBNode
 		
 	assert(await svr.command("GET", "name", 0) == None)
 	
@@ -58,7 +58,7 @@ async def testInterfaceDBNode():
 async def testDBNode():
 	local_address, childProcess = startService("DBNode")
 
-	svr = ServerProxy("tcp://" + str(local_address)).DBNode
+	svr = ServerProxy(local_address).DBNode
 
 	assert(await svr.command("DELETE", "name", 0) in [0,1])
 
@@ -81,7 +81,7 @@ async def testDBNode():
 async def testNameService():
 	local_address, childProcess = startService("NameService")
 
-	svr = ServerProxy("tcp://" + str(local_address)).NameService
+	svr = ServerProxy(local_address).NameService
 
 	assert(await svr.unregister("localhost:8080") in [True, False])
 	assert(await svr.unregister("localhost:8081") in [True, False])
@@ -124,13 +124,13 @@ async def testServerLoadBalancer():
 
 	db_address, dbProcess = startService("interface.DBNode")
 
-	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
+	name_svr = ServerProxy(name_service_address).NameService
 
-	assert(await name_svr.register(str(db_address)) == None)
+	assert(await name_svr.register(db_address) == None)
 
 	local_address, slbProcess = startService("ServerLoadBalancer")
 
-	svr = ServerProxy("tcp://" + str(local_address)).ServerLoadBalancer
+	svr = ServerProxy(local_address).ServerLoadBalancer
 
 	assert(await svr.bind(name_service_address) == True)
 
@@ -151,64 +151,102 @@ async def testServerLoadBalancer():
 
 async def testCache():
 	name_service_address, nameProcess = startService("NameService")
-
-	db_address, dbProcess = startService("interface.DBNode")
-
 	cache_address, cacheProcess = startService("CacheNode")
 
-	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
+	name_svr = ServerProxy(name_service_address).NameService
+	assert(await name_svr.register(cache_address) == None)
 
-	assert(await name_svr.register(str(db_address)) == None)
-
-	db_svr = ServerProxy("tcp://" + str(db_address)).DBNode
-
-	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
-
+	db_address, dbProcess = startService("DBNode")
+	cache_svr = ServerProxy(cache_address).CacheNode
 	assert(await cache_svr.set_up(db_address, name_service_address, cache_address, 30) == True)
 
-	assert(await cache_svr.command("GET", "name", 0) == None)
-	
-	assert(await cache_svr.command("SET", "name", 0, "cyk") == True)
-	assert(await cache_svr.command("GET", "name", 0) == "cyk")
+	local_address, slbProcess = startService("ServerLoadBalancer")
+	svr = ServerProxy(local_address).ServerLoadBalancer
 
-	assert(await cache_svr.command("DELETE", "name", 0) == 1)
-	assert(await cache_svr.command("GET", "name", 0) == None)
+	assert(await svr.bind(name_service_address) == True)
 
-	assert(await cache_svr.command("DELETE", "name", 0) == 0)
+	assert(await svr.forward("GET", "name") == None)
+
+	assert(await svr.forward("SET", "name", "cyk") == True)
+	assert(await svr.forward("GET", "name") == "cyk")
+
+	assert(await svr.forward("DELETE", "name") == 1)
+	assert(await svr.forward("GET", "name") == None)
+
+	assert(await svr.forward("DELETE", "name") == 0)
+	assert(await svr.forward("GET", "name") == None)
 	
 	nameProcess.kill()
 	dbProcess.kill()
 	cacheProcess.kill()
+	slbProcess.kill()
+
+async def testFull():
+	name_service_address, nameProcess = startService("NameService")
+	cache_address, cacheProcess = startService("CacheNode")
+
+	name_svr = ServerProxy(name_service_address).NameService
+	assert(await name_svr.register(cache_address) == None)
+
+	db_address, dbProcess = startService("DBNode")
+	cache_svr = ServerProxy(cache_address).CacheNode
+	assert(await cache_svr.set_up(db_address, name_service_address, cache_address, 30) == True)
+
+	local_address, slbProcess = startService("ServerLoadBalancer")
+	svr = ServerProxy(local_address).ServerLoadBalancer
+
+	assert(await svr.bind(name_service_address) == True)
+
+	assert(await svr.forward("GET", "name") == None)
+
+	assert(await svr.forward("SET", "name", "cyk") == True)
+	assert(await svr.forward("GET", "name") == "cyk")
+
+	assert(await svr.forward("DELETE", "name") == 1)
+	assert(await svr.forward("GET", "name") == None)
+
+	assert(await svr.forward("DELETE", "name") == 0)
+	assert(await svr.forward("GET", "name") == None)
+	
+	nameProcess.kill()
+	dbProcess.kill()
+	cacheProcess.kill()
+	slbProcess.kill()
+
+async def sleepWithLog(sec):
+	print("going to sleep: %d seconds" % sec)
+	for i in range(sec):
+		print("sleep: ", sec - i)
+		await asyncio.sleep(1)
 
 async def testHeartbeat():
 	name_service_address, nameProcess = startService("NameService")
 	cache_address, cacheProcess = startService("CacheNode")
 
-	name_svr = ServerProxy("tcp://" + str(name_service_address)).NameService
-	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
+	name_svr = ServerProxy(name_service_address).NameService
+	cache_svr = ServerProxy(cache_address).CacheNode
 
-	assert(await name_svr.register(str(cache_address)) == None)
+	assert(await name_svr.register(cache_address) == None)
 
 	assert(await name_svr.start_check_all_heartbeat() == None)
-	await asyncio.sleep(10)  
+	await sleepWithLog(10)
 
 	assert(cache_address in await name_svr.get_alive_node_dict())
 
 	cacheProcess.kill()
-	await asyncio.sleep(10)
+	await sleepWithLog(10)
 
 	assert(cache_address not in await name_svr.get_alive_node_dict())   # check if a node is down
 
 	cache_address, cacheProcess = startService("CacheNode")
-	cache_svr = ServerProxy("tcp://" + str(cache_address)).CacheNode
-	assert(await name_svr.register(str(cache_address)) == None)
-	await asyncio.sleep(10)
+	cache_svr = ServerProxy(cache_address).CacheNode
+	assert(await name_svr.register(cache_address) == None)
+	await sleepWithLog(10)
 
 	assert(cache_address in await name_svr.get_alive_node_dict())    # check if a node is recovered
 
 	cacheProcess.kill()
 	nameProcess.kill()
-
 
 def main():
 	asyncio.run(testInterfaceDBNode())
@@ -217,6 +255,7 @@ def main():
 	asyncio.run(testServerLoadBalancer())
 	asyncio.run(testCache())
 	asyncio.run(testHeartbeat())
+	asyncio.run(testFull())
 
 if __name__ == "__main__":
 	main()

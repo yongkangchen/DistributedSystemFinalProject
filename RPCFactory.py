@@ -5,7 +5,7 @@ class RPCFactory:
 	def getInstance(name):
 		cache = RPCFactory.cache
 		if name in cache: return cache[name]
-		proxy = ServerProxy("tcp://" + name)
+		proxy = ServerProxy(name)
 		cache[name] = proxy
 		return proxy
 
