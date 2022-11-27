@@ -151,35 +151,34 @@ async def testServerLoadBalancer():
 
 async def testCache():
 	name_service_address, nameProcess = startService("NameService")
+
+	db_address, dbProcess = startService("interface.DBNode")
+
 	cache_address, cacheProcess = startService("CacheNode")
 
 	name_svr = ServerProxy(name_service_address).NameService
-	assert(await name_svr.register(cache_address) == None)
 
-	db_address, dbProcess = startService("DBNode")
+	assert(await name_svr.register(str(db_address)) == None)
+
+	db_svr = ServerProxy(db_address).DBNode
+
 	cache_svr = ServerProxy(cache_address).CacheNode
+
 	assert(await cache_svr.set_up(db_address, name_service_address, cache_address, 30) == True)
 
-	local_address, slbProcess = startService("ServerLoadBalancer")
-	svr = ServerProxy(local_address).ServerLoadBalancer
+	assert(await cache_svr.command("GET", "name", 0) == None)
+	
+	assert(await cache_svr.command("SET", "name", 0, "cyk") == True)
+	assert(await cache_svr.command("GET", "name", 0) == "cyk")
 
-	assert(await svr.bind(name_service_address) == True)
+	assert(await cache_svr.command("DELETE", "name", 0) == 1)
+	assert(await cache_svr.command("GET", "name", 0) == None)
 
-	assert(await svr.forward("GET", "name") == None)
-
-	assert(await svr.forward("SET", "name", "cyk") == True)
-	assert(await svr.forward("GET", "name") == "cyk")
-
-	assert(await svr.forward("DELETE", "name") == 1)
-	assert(await svr.forward("GET", "name") == None)
-
-	assert(await svr.forward("DELETE", "name") == 0)
-	assert(await svr.forward("GET", "name") == None)
+	assert(await cache_svr.command("DELETE", "name", 0) == 0)
 	
 	nameProcess.kill()
 	dbProcess.kill()
 	cacheProcess.kill()
-	slbProcess.kill()
 
 async def testFull():
 	name_service_address, nameProcess = startService("NameService")
@@ -241,8 +240,9 @@ async def testHeartbeat():
 	cache_address, cacheProcess = startService("CacheNode")
 	cache_svr = ServerProxy(cache_address).CacheNode
 	assert(await name_svr.register(cache_address) == None)
-	await sleepWithLog(10)
+	await sleepWithLog(12)
 
+	print(cache_address, await name_svr.get_alive_node_dict())
 	assert(cache_address in await name_svr.get_alive_node_dict())    # check if a node is recovered
 
 	cacheProcess.kill()

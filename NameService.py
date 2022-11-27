@@ -97,7 +97,11 @@ class NameService:
                 end = time.time()
                 NameService.alive_node_dict[node] = end - start # add lentency of an alive node
                 await asyncio.sleep(period)                  # send a heart bear periodly
-        finally:
+            if node in NameService.alive_node_dict:
+                del NameService.alive_node_dict[node]
+            NameService.returned_heart_beat_node.add(node)
+
+        except Exception as e:
             if node in NameService.alive_node_dict:
                 del NameService.alive_node_dict[node]
             NameService.returned_heart_beat_node.add(node)
