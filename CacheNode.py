@@ -15,7 +15,7 @@ class CacheNode:
         CacheNode.nid = nid
         CacheNode.capacity = capacity
         CacheNode.cache = OrderedDict()  # example: {"key": {"data":"aaaaaa", "timestamp": 1}}
-        await RPCFactory.getInstance(CacheNode.nameservice).register(CacheNode.nid)
+        await RPCFactory.getInstance(CacheNode.nameservice).notify.register(CacheNode.nid)
         return True
     
     def __del__():
@@ -38,21 +38,21 @@ class CacheNode:
 
             if not data: return
 
-            if len(CacheNode.cache) == CacheNode.capacity:  
+            if len(CacheNode.cache) == CacheNode.capacity:
                 CacheNode.cache.popitem(last=False)   # Remove the oldest item in the cache
 
             new_timestamp = CacheNode.generateNewTimetamp()
             CacheNode.cache[key] = {}    # add new data in cache
             CacheNode.cache[key]["data"] = data
             CacheNode.cache[key]["timestamp"] = new_timestamp
-            await RPCFactory.getInstance(CacheNode.nameservice).set_cache_meta(CacheNode.nid, key, new_timestamp)
+            await RPCFactory.getInstance(CacheNode.nameservice).notify.set_cache_meta(CacheNode.nid, key, new_timestamp)
 
         CacheNode.cache.move_to_end(key, last=True) # refresh to the newest order
 
         return data
 
     async def set(key: str, value: str) -> bool:
-        await RPCFactory.getInstance(CacheNode.db_node).set(key, value) # set value in DB
+        await RPCFactory.getInstance(CacheNode.db_node).notify.set(key, value) # set value in DB
 
         #TODO: verify how to generate the newest timestamp, we need the latest integer to do timestamp += 1,
         # but currently we don't know where to get 
@@ -66,27 +66,26 @@ class CacheNode:
             CacheNode.cache[key] = {}    # add new data in cache
         
         CacheNode.cache[key]["data"] = value
-        CacheNode.cache[key]["timestamp"] = new_timestamp    
+        CacheNode.cache[key]["timestamp"] = new_timestamp
         CacheNode.cache.move_to_end(key, last=True)
 
-        await RPCFactory.getInstance(CacheNode.nameservice).set_cache_meta(CacheNode.nid, key, new_timestamp)
+        await RPCFactory.getInstance(CacheNode.nameservice).notify.set_cache_meta(CacheNode.nid, key, new_timestamp)
 
         return True
 
     async def delete(key: str) -> bool:
-
         if key in CacheNode.cache:
-            await RPCFactory.getInstance(CacheNode.db_node).delete(key) # delete value in DB
+            await RPCFactory.getInstance(CacheNode.db_node).notify.delete(key) # delete value in DB
             del CacheNode.cache[key]
-            await RPCFactory.getInstance(CacheNode.nameservice).set_cache_meta(CacheNode.nid, key, -1) # set the timestamp expired
+            await RPCFactory.getInstance(CacheNode.nameservice).notify.set_cache_meta(CacheNode.nid, key, -1) # set the timestamp expired
             return True
 
         return False
 
-    async def heart_beat(check_num: int) -> int:
+    def heart_beat(check_num: int) -> int:
         return check_num
 
-    async def command(cmd: str, key: str, timestamp: str, *args) -> any:
+    def command(cmd: str, key: str, timestamp: str, *args) -> any:
         """If data cached in this node and update time
         greater or equal than timestamp, return the cached data.
         Or Forward the command, key, args to the db node selected
@@ -104,12 +103,11 @@ class CacheNode:
             The result returned by cache or db node.
         """
         if cmd == "GET":
-            return await CacheNode.get(key, timestamp)
+            return CacheNode.get(key, timestamp)
 
         elif cmd == "SET":
-            return await CacheNode.set(key, args[0])
+            return CacheNode.set(key, args[0])
 
         elif cmd == "DELETE":
-            return await CacheNode.delete(key)
+            return CacheNode.delete(key)
         
-        return None
