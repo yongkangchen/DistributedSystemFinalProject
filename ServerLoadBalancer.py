@@ -1,9 +1,14 @@
 #!python3
 
 from RPCFactory import RPCFactory
+import config
 
 class ServerLoadBalancer:
     NameService = None
+    def init(_):
+        name_service_addr = "tcp://" + config.NameServiceAddr + ":" + str(config.NameServicePort)
+        ServerLoadBalancer.bind(name_service_addr)
+
     def bind(address: str) -> bool:
         ServerLoadBalancer.NameService = address
         return True

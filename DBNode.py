@@ -29,8 +29,7 @@ class DBNode:
    def __query__(*args):
       return asyncio.get_running_loop().run_in_executor(None, DBNode.__syncQuery__, *args)
 
-   def init():
-      name = "test"
+   def init(_, name = "test"):
       con = sqlite3.connect(name + ".db", check_same_thread=False)
       
       cur = con.cursor()

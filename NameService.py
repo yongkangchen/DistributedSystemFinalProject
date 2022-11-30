@@ -9,6 +9,8 @@ from RPCFactory import RPCFactory
 nest_asyncio.apply()
 
 class NameService:
+    def init(_):
+        NameService.start_check_all_heartbeat()
 
     nodeList = []
     nodeDict = {}

@@ -11,18 +11,24 @@ os.environ['PYTHONWARNINGS'] = 'ignore'
 from nng_json_rpc.RPCClient import ServerProxy
 import asyncio
 
+async def doInit(service, addr):
+	ret = service.init(addr)
+	if asyncio.iscoroutine(ret) or asyncio.isfuture(ret):
+		await ret
+
 def runInProcess(q, serviceName):
 	from importlib import import_module
 
 	from nng_json_rpc.RPCServer import RPCServer
 	server = RPCServer("tcp://127.0.0.1:0")
 
-	q.put("tcp://" + str(server.local_address))
+	addr = "tcp://" + str(server.local_address) 
+	q.put(addr)
 
 	service = getattr(import_module(serviceName), serviceName.split(".").pop())
 	
 	if getattr(service, "init", None):
-		service.init()
+		asyncio.run(doInit(service, addr))
 
 	server.build_method_map(service, service.__name__ + ".")
 	server.build_method_map(service)
@@ -242,7 +248,7 @@ async def testHeartbeat():
 	assert(await name_svr.register(cache_address) == None)
 	await sleepWithLog(12)
 
-	print(cache_address, await name_svr.get_alive_node_dict())
+	# print(cache_address, await name_svr.get_alive_node_dict())
 	assert(cache_address in await name_svr.get_alive_node_dict())    # check if a node is recovered
 
 	cacheProcess.kill()

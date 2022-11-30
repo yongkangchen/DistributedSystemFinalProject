@@ -1,6 +1,7 @@
 from RPCFactory import RPCFactory
 from collections import OrderedDict
 import time
+import config
 
 class CacheNode:
     db_node = None
@@ -8,6 +9,12 @@ class CacheNode:
     nid = None
     capacity = None
     cache = None
+
+    async def init(nid):
+        db_addr = "tcp://" + config.DBNodeAddr + ":" + str(config.DBNodePort)
+        name_service_addr = "tcp://" + config.NameServiceAddr + ":" + str(config.NameServicePort)
+
+        await CacheNode.set_up(db_addr, name_service_addr, nid, 5000)
 
     async def set_up(db_addr: str, name_service_addr: str, nid: str, capacity: int) -> bool:
         CacheNode.db_node = db_addr
