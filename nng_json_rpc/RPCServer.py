@@ -22,7 +22,7 @@ class RPCServer:
 	async def response(self, sock, msg):
 		content = msg.bytes.decode()
 
-		# print("request content: ", content)
+		print("request content: ", content)
 		
 		response = JSONRPCResponseManager.handle(
 			content, self.dispatcher)
@@ -34,7 +34,7 @@ class RPCServer:
 		if asyncio.iscoroutine(response.result) or asyncio.isfuture(response.result):
 			response.result = await response.result
 		
-		# print("response content => ", response.json)
+		print("response content => ", response.json)
 		await sock.asend(response.json.encode())
 
 	async def start(self):
