@@ -9,3 +9,5 @@
 
 # Note: need to install dependencies: 
 sh install.sh
+
+python version: 3.10.8
