@@ -13,7 +13,7 @@ python client.py
 sh stop.sh
 
 ## Division of work: 
-Yongkang Chen: nng-json-rpc, NameService
+Yongkang Chen: nng-json-rpc, NameService, DBNode
 
 Yu-An Chen: CacheNode, NameService
 
