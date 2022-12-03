@@ -8,6 +8,8 @@ python version: 3.10.8
 ## run & stop
 sh start.sh
 
+python client.py
+
 sh stop.sh
 
 ## coding style guide
